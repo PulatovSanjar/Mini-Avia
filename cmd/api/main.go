@@ -7,7 +7,7 @@ import (
 
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		_, err := fmt.Fprintln(w, "Mini-Avia API is alivewww")
+		_, err := fmt.Fprintln(w, "Mini-Avia API is alive")
 		if err != nil {
 			return
 		}

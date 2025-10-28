@@ -40,15 +40,24 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: dev                 # <<< dev-стейдж
     container_name: miniavia-api
     depends_on:
+      db:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
     ports:
-      - "${APP_PORT}:8080"
+      - "${APP_PORT:-8090}:8090"  # Air proxy_port
     env_file:
       - .env
+    volumes:
+      - .:/app
+      - go-mod:/go/pkg/mod
+      - go-build:/root/.cache/go-build
     restart: unless-stopped
 
 volumes:
   pgdata:
+  go-mod:
+  go-build:
