@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS idx_offers_route_date;
+DROP TABLE IF EXISTS offers CASCADE;

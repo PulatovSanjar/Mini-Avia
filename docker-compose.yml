@@ -27,13 +27,13 @@ services:
         condition: service_healthy
     volumes:
       - ./internal/migrations:/migrations:ro
+    env_file:
+      - .env
     command: >
       -path=/migrations
       -database ${DATABASE_URL}
       up
     restart: "no"
-    env_file:
-      - .env
 
   api:
     platform: ${PLATFORM:-linux/arm64}
