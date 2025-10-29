@@ -4,7 +4,6 @@ import (
 	"Mini-Avia/internal/common"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -27,35 +26,38 @@ func main() {
 	}
 	defer pool.Close()
 
-	mux := http.NewServeMux()
-
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      requestLogger(log, mux),
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
+	// (опционально) fail-fast ping БД
+	pctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	if err := pool.Ping(pctx); err != nil {
+		cancel()
+		log.Error("DB ping failed", "error", err)
+		os.Exit(1)
 	}
+	cancel()
 
+	// собираем маршруты и оборачиваем middleware-логгером
+	handler := requestLogger(log, routes(pool, log))
+
+	app := &application{port: cfg.Port}
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(http.ErrServerClosed, err) {
-			log.Error("Error starting server", "error", err)
+		if err := app.serve(handler); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("server failed", "error", err)
 			os.Exit(1)
 		}
 	}()
 
+	// graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-	log.Info("Shutting down server...")
+	log.Info("Shutting down...")
 
-	ctxShutDown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(ctxShutDown); err != nil {
-		log.Error("Error shutting down server", "error", err)
+	ctxShutDown, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel2()
+	if err := app.srv.Shutdown(ctxShutDown); err != nil {
+		log.Error("shutdown error", "error", err)
 	}
 	log.Info("Server gracefully stopped")
-
 }
 
 type wrapWriter struct {
@@ -77,5 +79,16 @@ func requestLogger(log *slog.Logger, handler http.Handler) http.Handler {
 			"duration_ms", time.Since(start).Milliseconds(),
 			"remote", r.RemoteAddr,
 		)
+	})
+}
+
+func only(method string, h http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != method {
+			w.Header().Set("Allow", method)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h(w, r)
 	})
 }

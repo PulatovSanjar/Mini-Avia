@@ -11,7 +11,6 @@ func NewLogger(level string) *slog.Logger {
 	switch strings.ToLower(level) {
 	case "debug":
 		lvl = slog.LevelDebug
-
 	case "warn":
 		lvl = slog.LevelWarn
 	case "error":
