@@ -21,13 +21,13 @@ func MustLoad() Config {
 	}
 	cfg := Config{
 		Port:        port,
-		LogLevel:    getenv("LOG_LEVEL", "info"),
+		LogLevel:    getEnv("LOG_LEVEL", "info"),
 		DatabaseURL: mustEnv("DATABASE_URL"),
 	}
 	return cfg
 }
 
-func getenv(key, def string) string {
+func getEnv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
