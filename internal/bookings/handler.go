@@ -19,22 +19,16 @@ type Handler struct {
 func NewHandler(db *pgxpool.Pool, log *slog.Logger) *Handler { return &Handler{db: db, log: log} }
 
 type CreateRequest struct {
-	OfferID     int64  `json:"offer_id"`
-	Name        string `json:"passenger_name"`
-	Surname     string `json:"passenger_surname"`
-	PassportDoc string `json:"passport_doc"`
-	PassBirth   string `json:"passenger_birth"`
+	OfferID int64  `json:"offer_id"`
+	UserID  string `json:"user_id"`
 }
 
 type Booking struct {
-	ID          int64     `json:"id"`
-	OfferID     int64     `json:"offer_id"`
-	Status      string    `json:"status"`
-	Name        string    `json:"passenger_name"`
-	Surname     string    `json:"passenger_surname"`
-	PassportDoc string    `json:"passport_doc"`
-	PassBirth   string    `json:"email"`
-	Created     time.Time `json:"created_at"`
+	ID      int64     `json:"id"`
+	OfferID int64     `json:"offer_id"`
+	UserID  string    `json:"user_id"`
+	Status  string    `json:"status"`
+	Created time.Time `json:"created_at"`
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -42,17 +36,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil ||
 		req.OfferID <= 0 ||
-		req.Name == "" ||
-		req.Surname == "" ||
-		req.PassportDoc == "" ||
-		req.PassBirth == "" {
+		req.UserID == "" {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
-		return
-	}
-
-	birth, err := time.Parse("2006-01-02", req.PassBirth)
-	if err != nil {
-		http.Error(w, "passenger_birth must be YYYY-MM-DD", http.StatusBadRequest)
 		return
 	}
 
@@ -60,7 +45,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var booking Booking
-	err = h.withTx(ctx, func(tx pgx.Tx) error {
+	err := h.withTx(ctx, func(tx pgx.Tx) error {
 		ct, err := tx.Exec(ctx, `
 			UPDATE offers SET seats_left = seats_left - 1
 			WHERE id = $1 AND seats_left > 0
@@ -75,14 +60,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 		return tx.QueryRow(ctx, `
             INSERT INTO bookings (
-                offer_id, passenger_name, passenger_surname, passport_doc, passenger_birth, status
-            ) VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id, offer_id, passenger_name, passenger_surname, passport_doc, passenger_birth, status, created_at
+                offer_id, user_id, status
+            ) VALUES ($1, $2, $3)
+            RETURNING id, offer_id, user_id, status, created_at
         `,
-			req.OfferID, req.Name, req.Surname, req.PassportDoc, birth, "reserved",
+			req.OfferID, req.UserID, "reserved",
 		).Scan(
-			&booking.ID, &booking.OfferID, &booking.Name, &booking.Surname,
-			&booking.PassportDoc, &birth, &booking.Status, &booking.Created,
+			&booking.ID, &booking.OfferID, &booking.UserID, &booking.Status, &booking.Created,
 		)
 	})
 

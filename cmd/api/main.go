@@ -18,6 +18,13 @@ func main() {
 	log := common.NewLogger(cfg.LogLevel).With("component", "api")
 	log.Info("starting", "port", cfg.Port)
 
+	if os.Getenv("JWT_SECRET") == "" {
+		err := os.Setenv("JWT_SECRET", "dev-secret-change-me")
+		if err != nil {
+			return
+		}
+	}
+
 	ctx := context.Background()
 	pool, err := common.NewDB(ctx, cfg.DatabaseURL)
 	if err != nil {

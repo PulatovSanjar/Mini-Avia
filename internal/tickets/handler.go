@@ -23,6 +23,7 @@ func NewHandler(db *pgxpool.Pool, log *slog.Logger) *Handler { return &Handler{d
 type Ticket struct {
 	ID        int64     `json:"id"`
 	BookingID int64     `json:"booking_id"`
+	UserID    int64     `json:"user_id"`
 	Number    string    `json:"ticket_number"`
 	IssuedAt  time.Time `json:"issued_at"`
 }
@@ -59,10 +60,10 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO tickets (booking_id, ticket_number)
+			INSERT INTO tickets (booking_id, user_id, ticket_number)
 			VALUES ($1, 'TKT-' || EXTRACT(EPOCH FROM clock_timestamp())::bigint)
-			RETURNING id, booking_id, ticket_number, issued_at
-		`, bookingID).Scan(&t.ID, &t.BookingID, &t.Number, &t.IssuedAt); err != nil {
+			RETURNING id, booking_id, user_id, ticket_number, issued_at
+		`, bookingID).Scan(&t.ID, &t.BookingID, &t.UserID, &t.Number, &t.IssuedAt); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 				return errors.New("already_issued")
