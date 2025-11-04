@@ -9,5 +9,6 @@
     <file url="file://$PROJECT_DIR$/internal/migrations/000003_create_tickets_table.up.sql" dialect="GenericSQL" />
     <file url="file://$PROJECT_DIR$/internal/migrations/000004_seed_offers.down.sql" dialect="GenericSQL" />
     <file url="file://$PROJECT_DIR$/internal/migrations/000004_seed_offers.up.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/internal/offers/handler.go" dialect="GenericSQL" />
   </component>
 </project>

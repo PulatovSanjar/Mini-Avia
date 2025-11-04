@@ -38,6 +38,7 @@ func main() {
 	loadRoutes(router, pool, log)
 
 	stack := middleware.CreateStack(
+		middleware.Recovery(log),
 		middleware.RequestLogger(log),
 	)
 	handler := stack(router)
