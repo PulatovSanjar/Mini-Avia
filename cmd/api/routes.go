@@ -31,6 +31,7 @@ func loadRoutes(mux *http.ServeMux, pool *pgxpool.Pool, log *slog.Logger) {
 	bok := bookings.NewHandler(pool, log)
 	tkt := tickets.NewHandler(pool, log)
 
+	mux.HandleFunc("GET /all-offers", off.GetAll)
 	mux.HandleFunc("GET /offers", off.Search)
 
 	mux.Handle("POST /bookings", reqAuth(http.HandlerFunc(bok.Create)))

@@ -1,6 +1,7 @@
 package tickets
 
 import (
+	"Mini-Avia/internal/middleware"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,7 +19,9 @@ type Handler struct {
 	log *slog.Logger
 }
 
-func NewHandler(db *pgxpool.Pool, log *slog.Logger) *Handler { return &Handler{db: db, log: log} }
+func NewHandler(db *pgxpool.Pool, log *slog.Logger) *Handler {
+	return &Handler{db: db, log: log}
+}
 
 type Ticket struct {
 	ID        int64     `json:"id"`
@@ -36,7 +39,13 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 	}
 	bookingID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || bookingID <= 0 {
-		http.Error(w, "id must be positive integer", http.StatusBadRequest)
+		http.Error(w, "id must be a positive integer", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.UserID(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -45,25 +54,32 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 
 	var t Ticket
 	err = h.withTx(ctx, func(tx pgx.Tx) error {
-		var status string
-		if err := tx.QueryRow(ctx,
-			`SELECT status FROM bookings WHERE id = $1 FOR UPDATE`,
+		var status, bookingUserID string
+		err := tx.QueryRow(ctx, `
+			SELECT status, user_id FROM bookings WHERE id = $1 FOR UPDATE`,
 			bookingID,
-		).Scan(&status); err != nil {
+		).Scan(&status, &bookingUserID)
+
+		if bookingUserID != strconv.FormatInt(int64(userID), 10) {
+			return errors.New("forbidden")
+		}
+
+		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return errors.New("not_found")
 			}
 			return err
 		}
+
 		if status != "reserved" {
 			return errors.New("bad_status")
 		}
 
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO tickets (booking_id, user_id, ticket_number)
-			VALUES ($1, 'TKT-' || EXTRACT(EPOCH FROM clock_timestamp())::bigint)
+			VALUES ($1, $2, 'TKT-' || EXTRACT(EPOCH FROM clock_timestamp())::bigint)
 			RETURNING id, booking_id, user_id, ticket_number, issued_at
-		`, bookingID).Scan(&t.ID, &t.BookingID, &t.UserID, &t.Number, &t.IssuedAt); err != nil {
+		`, bookingID, userID).Scan(&t.ID, &t.BookingID, &t.UserID, &t.Number, &t.IssuedAt); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 				return errors.New("already_issued")
@@ -82,6 +98,9 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		switch err.Error() {
+		case "forbidden":
+			http.Error(w, "you cannot issue ticket for another user's booking", http.StatusForbidden)
+			return
 		case "not_found":
 			http.Error(w, "booking not found", http.StatusNotFound)
 			return

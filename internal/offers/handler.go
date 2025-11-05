@@ -75,3 +75,48 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(res)
 }
+
+func (h *Handler) GetAll(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	nextDay := time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour)
+
+	rows, err := h.db.Query(ctx, `
+		SELECT id, flight_no, airline, departure_airport, arrival_airport,
+		       departure_at, arrival_at, currency, price_tiyin, seats_left
+		  FROM offers
+		 WHERE departure_at >= $1
+		 ORDER BY price_tiyin ASC, departure_at ASC
+		 LIMIT 200
+	`, nextDay)
+
+	if err != nil {
+		h.log.Error("offers_query_failed", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var res []Offer
+	for rows.Next() {
+		var o Offer
+		if err := rows.Scan(
+			&o.ID, &o.FlightNo, &o.Airline, &o.DesAirport, &o.ArrAirport,
+			&o.DepTime, &o.ArrTime, &o.Currency, &o.Price, &o.SeatsLeft,
+		); err != nil {
+			h.log.Error("offers_scan_failed", "err", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		res = append(res, o)
+	}
+	if err := rows.Err(); err != nil {
+		h.log.Error("offers_rows_err", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(res)
+}

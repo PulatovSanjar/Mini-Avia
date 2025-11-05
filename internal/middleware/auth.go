@@ -13,8 +13,6 @@ type ctxKey string
 
 const userIDKey ctxKey = "user_id"
 
-// RequireAuth возвращает обёртку для защищённых хендлеров.
-// secret — ваш []byte секрет для HS256.
 func RequireAuth(secret []byte) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +54,6 @@ func RequireAuth(secret []byte) func(http.Handler) http.Handler {
 	}
 }
 
-// UserID извлекает user_id, положенный мидлваркой.
 func UserID(ctx context.Context) (int, bool) {
 	v, ok := ctx.Value(userIDKey).(int)
 	return v, ok && v > 0

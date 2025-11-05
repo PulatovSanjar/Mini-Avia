@@ -63,7 +63,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
 	`, req.Name, req.Surname, req.BirthDate, req.PassportDoc, email, string(hash)).Scan(&id)
 	if err != nil {
-		http.Error(w, "email does not exist", http.StatusBadRequest)
+		http.Error(w, "email already exist", http.StatusBadRequest)
 		return
 	}
 	err = json.NewEncoder(w).Encode(tokenResp{Token: h.makeJWT(id)})

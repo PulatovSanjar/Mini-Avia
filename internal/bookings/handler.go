@@ -1,6 +1,7 @@
 package bookings
 
 import (
+	"Mini-Avia/internal/middleware"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,24 +20,26 @@ type Handler struct {
 func NewHandler(db *pgxpool.Pool, log *slog.Logger) *Handler { return &Handler{db: db, log: log} }
 
 type CreateRequest struct {
-	OfferID int64  `json:"offer_id"`
-	UserID  string `json:"user_id"`
+	OfferID int64 `json:"offer_id"`
 }
 
 type Booking struct {
 	ID      int64     `json:"id"`
 	OfferID int64     `json:"offer_id"`
-	UserID  string    `json:"user_id"`
+	UserID  int64     `json:"user_id"`
 	Status  string    `json:"status"`
 	Created time.Time `json:"created_at"`
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	var req CreateRequest
+	userID, ok := middleware.UserID(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil ||
-		req.OfferID <= 0 ||
-		req.UserID == "" {
+	var req CreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.OfferID <= 0 {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
@@ -64,7 +67,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
             ) VALUES ($1, $2, $3)
             RETURNING id, offer_id, user_id, status, created_at
         `,
-			req.OfferID, req.UserID, "reserved",
+			req.OfferID, userID, "reserved",
 		).Scan(
 			&booking.ID, &booking.OfferID, &booking.UserID, &booking.Status, &booking.Created,
 		)
@@ -72,15 +75,15 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err.Error() == "no_seats" {
-			http.Error(w, "no seats", http.StatusConflict)
+			http.Error(w, "no seats available", http.StatusConflict)
 			return
 		}
 		h.log.Error("booking_create_failed", "err", err)
-		http.Error(w, "booking_create_failed", http.StatusInternalServerError)
+		http.Error(w, "booking create failed", http.StatusInternalServerError)
 		return
 	}
 
-	h.log.Info("booking_created", "booking_id", booking.ID, "offer_id", booking.OfferID)
+	h.log.Info("booking_created", "booking_id", booking.ID, "offer_id", booking.OfferID, "user_id", booking.UserID)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(booking)
 }
