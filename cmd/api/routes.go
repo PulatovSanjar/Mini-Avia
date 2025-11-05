@@ -16,6 +16,9 @@ func loadRoutes(mux *http.ServeMux, pool *pgxpool.Pool, log *slog.Logger) {
 	secret := []byte(os.Getenv("JWT_SECRET"))
 	auh := auth.NewHandler(pool, os.Getenv("JWT_SECRET"))
 	reqAuth := middleware.RequireAuth(secret)
+	off := offers.NewHandler(pool, log)
+	bok := bookings.NewHandler(pool, log)
+	tkt := tickets.NewHandler(pool, log)
 
 	mux.HandleFunc("POST /auth/register", auh.Register)
 	mux.HandleFunc("POST /auth/login", auh.Login)
@@ -26,10 +29,6 @@ func loadRoutes(mux *http.ServeMux, pool *pgxpool.Pool, log *slog.Logger) {
 			return
 		}
 	})
-
-	off := offers.NewHandler(pool, log)
-	bok := bookings.NewHandler(pool, log)
-	tkt := tickets.NewHandler(pool, log)
 
 	mux.HandleFunc("GET /all-offers", off.GetAll)
 	mux.HandleFunc("GET /offers", off.Search)

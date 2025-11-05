@@ -8,7 +8,7 @@ up: ## поднять контейнеры
 down: ## остановить и удалить контейнеры
 	$(COMPOSE) --env-file $(ENV) down --remove-orphans
 
-migrate-down:
+migrate-down: ## удаляем таблицы
 	migrate -path internal/migrations -database "postgres://miniavia:miniavia@localhost:5432/miniavia?sslmode=disable" down -all
 
 init: ## полная инициализация: up + миграции

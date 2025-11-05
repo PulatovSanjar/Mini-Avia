@@ -43,46 +43,49 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, ok := middleware.UserID(r.Context())
+	uidInt, ok := middleware.UserID(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	userID := int64(uidInt)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
 	var t Ticket
 	err = h.withTx(ctx, func(tx pgx.Tx) error {
-		var status, bookingUserID string
-		err := tx.QueryRow(ctx, `
-			SELECT status, user_id FROM bookings WHERE id = $1 FOR UPDATE`,
+		var (
+			status        string
+			bookingUserID int64
+		)
+
+		if err := tx.QueryRow(ctx,
+			`SELECT status, user_id FROM bookings WHERE id = $1 FOR UPDATE`,
 			bookingID,
-		).Scan(&status, &bookingUserID)
-
-		if bookingUserID != strconv.FormatInt(int64(userID), 10) {
-			return errors.New("forbidden")
-		}
-
-		if err != nil {
+		).Scan(&status, &bookingUserID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return errors.New("not_found")
+				return errNotFound
 			}
 			return err
 		}
 
 		if status != "reserved" {
-			return errors.New("bad_status")
+			return errBadStatus
+		}
+
+		if bookingUserID != userID {
+			return errForbidden
 		}
 
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO tickets (booking_id, user_id, ticket_number)
-			VALUES ($1, $2, 'TKT-' || EXTRACT(EPOCH FROM clock_timestamp())::bigint)
-			RETURNING id, booking_id, user_id, ticket_number, issued_at
-		`, bookingID, userID).Scan(&t.ID, &t.BookingID, &t.UserID, &t.Number, &t.IssuedAt); err != nil {
+            INSERT INTO tickets (booking_id, user_id, ticket_number)
+            VALUES ($1, $2, 'TKT-' || EXTRACT(EPOCH FROM clock_timestamp())::bigint)
+            RETURNING id, booking_id, user_id, ticket_number, issued_at
+        `, bookingID, userID).Scan(&t.ID, &t.BookingID, &t.UserID, &t.Number, &t.IssuedAt); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				return errors.New("already_issued")
+				return errAlreadyIssued
 			}
 			return err
 		}
@@ -97,30 +100,33 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		switch err.Error() {
-		case "forbidden":
+		switch {
+		case errors.Is(err, errForbidden):
 			http.Error(w, "you cannot issue ticket for another user's booking", http.StatusForbidden)
-			return
-		case "not_found":
+		case errors.Is(err, errNotFound):
 			http.Error(w, "booking not found", http.StatusNotFound)
-			return
-		case "bad_status":
+		case errors.Is(err, errBadStatus):
 			http.Error(w, "booking not in reserved state", http.StatusConflict)
-			return
-		case "already_issued":
+		case errors.Is(err, errAlreadyIssued):
 			http.Error(w, "ticket already issued", http.StatusConflict)
-			return
 		default:
 			h.log.Error("ticket_issue_failed", "err", err)
 			http.Error(w, "internal", http.StatusInternalServerError)
-			return
 		}
+		return
 	}
 
 	h.log.Info("ticket_issued", "booking_id", t.BookingID, "ticket", t.Number)
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(t)
 }
+
+var (
+	errForbidden     = errors.New("forbidden")
+	errNotFound      = errors.New("not_found")
+	errBadStatus     = errors.New("bad_status")
+	errAlreadyIssued = errors.New("already_issued")
+)
 
 func (h *Handler) withTx(ctx context.Context, fn func(pgx.Tx) error) error {
 	tx, err := h.db.BeginTx(ctx, pgx.TxOptions{})

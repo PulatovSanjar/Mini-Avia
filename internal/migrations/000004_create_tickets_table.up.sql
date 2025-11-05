@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS tickets (
     id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id         INT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    user_id         INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     booking_id      INT NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
     ticket_number   VARCHAR(30) NOT NULL UNIQUE,
     issued_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()

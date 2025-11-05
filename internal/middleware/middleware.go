@@ -57,6 +57,8 @@ func RequestLogger(log *slog.Logger) Middleware {
 				"method", r.Method,
 				"path", r.URL.Path,
 				"status", rw.status,
+				"body", r.Body,
+				"header", r.Header, // много текста, нужен ли?
 				"duration_ms", time.Since(start).Milliseconds(),
 				"remote", r.RemoteAddr,
 			)
