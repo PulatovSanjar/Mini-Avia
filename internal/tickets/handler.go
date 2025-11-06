@@ -31,6 +31,13 @@ type Ticket struct {
 	IssuedAt  time.Time `json:"issued_at"`
 }
 
+var (
+	errForbidden     = errors.New("forbidden")
+	errNotFound      = errors.New("not_found")
+	errBadStatus     = errors.New("bad_status")
+	errAlreadyIssued = errors.New("already_issued")
+)
+
 func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	if idStr == "" {
@@ -120,13 +127,6 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(t)
 }
-
-var (
-	errForbidden     = errors.New("forbidden")
-	errNotFound      = errors.New("not_found")
-	errBadStatus     = errors.New("bad_status")
-	errAlreadyIssued = errors.New("already_issued")
-)
 
 func (h *Handler) withTx(ctx context.Context, fn func(pgx.Tx) error) error {
 	tx, err := h.db.BeginTx(ctx, pgx.TxOptions{})

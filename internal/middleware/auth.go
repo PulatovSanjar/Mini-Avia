@@ -26,7 +26,7 @@ func RequireAuth(secret []byte) func(http.Handler) http.Handler {
 				return secret, nil
 			})
 			if err != nil || !parsed.Valid {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				http.Error(w, "invalid token", http.StatusUnauthorized)
 				return
 			}
 			cs, ok := parsed.Claims.(jwt.MapClaims)
