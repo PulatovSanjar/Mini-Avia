@@ -39,6 +39,9 @@ var (
 )
 
 func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
 	idStr := r.PathValue("id")
 	if idStr == "" {
 		http.Error(w, "id required", http.StatusBadRequest)
@@ -56,9 +59,6 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := int64(uidInt)
-
-	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
-	defer cancel()
 
 	var t Ticket
 	err = h.withTx(ctx, func(tx pgx.Tx) error {

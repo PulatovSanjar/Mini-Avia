@@ -31,15 +31,15 @@ type Offer struct {
 }
 
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+
 	q := r.URL.Query()
 	from, to, date := q.Get("from"), q.Get("to"), q.Get("date")
 	if len(from) != 3 || len(to) != 3 || date == "" {
 		http.Error(w, "params: from(3), to(3), date(YYYY-MM-DD)", http.StatusBadRequest)
 		return
 	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-	defer cancel()
 
 	h.log.Info("offers_query", "from", from, "to", to, "date", date)
 
