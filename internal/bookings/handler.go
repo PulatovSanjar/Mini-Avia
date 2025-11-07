@@ -6,18 +6,21 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"log/slog"
 	"net/http"
 	"time"
 )
 
+type TxStarter interface {
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+}
+
 type Handler struct {
-	db  *pgxpool.Pool
+	db  TxStarter // ↓ заменить на интерфейс
 	log *slog.Logger
 }
 
-func NewHandler(db *pgxpool.Pool, log *slog.Logger) *Handler { return &Handler{db: db, log: log} }
+func NewHandler(db TxStarter, log *slog.Logger) *Handler { return &Handler{db: db, log: log} }
 
 type CreateRequest struct {
 	OfferID int64 `json:"offer_id"`

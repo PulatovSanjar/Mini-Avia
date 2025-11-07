@@ -5,6 +5,7 @@ go 1.25.3
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/jackc/pgx/v5 v5.7.6
+	github.com/pashagolub/pgxmock/v3 v3.4.0
 	golang.org/x/crypto v0.37.0
 )
 
