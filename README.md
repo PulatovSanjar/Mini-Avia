@@ -16,7 +16,7 @@
    
    или
    
-   docker compose up
+   docker-compose up
 
 ---
 ##  🧩 Роуты API
